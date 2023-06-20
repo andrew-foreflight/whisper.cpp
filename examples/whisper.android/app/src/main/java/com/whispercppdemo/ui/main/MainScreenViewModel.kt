@@ -41,8 +41,13 @@ class MainScreenViewModel(private val application: Application) : ViewModel() {
 
     init {
         viewModelScope.launch {
+            printSystemInfo()
             loadData()
         }
+    }
+
+    private suspend fun printSystemInfo() {
+        printMessage(String.format("System Info: %s\n", WhisperContext.getSystemInfo()));
     }
 
     private suspend fun loadData() {
@@ -64,20 +69,44 @@ class MainScreenViewModel(private val application: Application) : ViewModel() {
     private suspend fun copyAssets() = withContext(Dispatchers.IO) {
         modelsPath.mkdirs()
         samplesPath.mkdirs()
-        application.copyData("models", modelsPath, ::printMessage)
+        //application.copyData("models", modelsPath, ::printMessage)
         application.copyData("samples", samplesPath, ::printMessage)
         printMessage("All data copied to working directory.\n")
     }
 
     private suspend fun loadBaseModel() = withContext(Dispatchers.IO) {
         printMessage("Loading model...\n")
-        val firstModel = modelsPath.listFiles()!!.first()
-        whisperContext = WhisperContext.createContext(firstModel.absolutePath)
-        printMessage("Loaded model ${firstModel.name}.\n")
+        val models = application.assets.list("models/")
+        if (models != null) {
+            whisperContext = WhisperContext.createContextFromAsset(application.assets, "models/" + models[0])
+            printMessage("Loaded model ${models[0]}.\n")
+        }
+
+        //val firstModel = modelsPath.listFiles()!!.first()
+        //whisperContext = WhisperContext.createContextFromFile(firstModel.absolutePath)
+    }
+
+    fun benchmark() = viewModelScope.launch {
+        runBenchmark(6)
     }
 
     fun transcribeSample() = viewModelScope.launch {
         transcribeAudio(getFirstSample())
+    }
+
+    private suspend fun runBenchmark(nthreads: Int) {
+        if (!canTranscribe) {
+            return
+        }
+
+        canTranscribe = false
+
+        printMessage("Running benchmark. This will take minutes...\n")
+        whisperContext?.benchMemory(nthreads)?.let{ printMessage(it) }
+        printMessage("\n")
+        whisperContext?.benchGgmlMulMat(nthreads)?.let{ printMessage(it) }
+
+        canTranscribe = true
     }
 
     private suspend fun getFirstSample(): File = withContext(Dispatchers.IO) {
@@ -109,11 +138,14 @@ class MainScreenViewModel(private val application: Application) : ViewModel() {
         canTranscribe = false
 
         try {
-            printMessage("Reading wave samples...\n")
+            printMessage("Reading wave samples... ")
             val data = readAudioSamples(file)
+            printMessage("${data.size / (16000 / 1000)} ms\n")
             printMessage("Transcribing data...\n")
+            val start = System.currentTimeMillis()
             val text = whisperContext?.transcribeData(data)
-            printMessage("Done: $text\n")
+            val elapsed = System.currentTimeMillis() - start
+            printMessage("Done ($elapsed ms): $text\n")
         } catch (e: Exception) {
             Log.w(LOG_TAG, e)
             printMessage("${e.localizedMessage}\n")

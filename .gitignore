@@ -1,5 +1,8 @@
 *.o
+*.a
 .cache/
+.coreml/
+.test/
 .vs/
 .vscode/
 .DS_Store
@@ -8,6 +11,9 @@ build/
 build-em/
 build-debug/
 build-release/
+build-static/
+build-cublas/
+build-no-accel/
 build-sanitize-addr/
 build-sanitize-thread/
 
@@ -15,9 +21,13 @@ build-sanitize-thread/
 /stream
 /command
 /talk
+/talk-llama
 /bench
+/quantize
 
+arm_neon.h
 sync.sh
+libwhisper.a
 libwhisper.so
 compile_commands.json
 
@@ -27,3 +37,10 @@ examples/whisper.objc/whisper.objc.xcodeproj/xcuserdata/
 examples/whisper.objc/whisper.objc.xcodeproj/project.xcworkspace/xcuserdata
 
 extra/bench-gg.txt
+
+models/*.mlmodel
+models/*.mlmodelc
+models/*.mlpackage
+bindings/java/.gradle/
+bindings/java/.idea/
+.idea/

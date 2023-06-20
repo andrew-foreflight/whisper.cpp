@@ -1,22 +1,26 @@
 LOCAL_PATH := $(call my-dir)
 include $(CLEAR_VARS)
-WHISPER_LIB_DIR := $(LOCAL_PATH)/../../../../../../../
-LOCAL_LDLIBS    := -llog
 LOCAL_MODULE    := libwhisper
+include $(LOCAL_PATH)/Whisper.mk
+include $(BUILD_SHARED_LIBRARY)
 
-# Make the final output library smaller by only keeping the symbols referenced from the app.
-ifneq ($(APP_OPTIM),debug)
-    LOCAL_CFLAGS += -fvisibility=hidden -fvisibility-inlines-hidden
-    LOCAL_CFLAGS += -ffunction-sections -fdata-sections
-    LOCAL_LDFLAGS += -Wl,--gc-sections
-    LOCAL_LDFLAGS += -Wl,--exclude-libs,ALL
-    LOCAL_LDFLAGS += -flto
+ifeq ($(TARGET_ARCH_ABI),armeabi-v7a)
+	include $(CLEAR_VARS)
+	LOCAL_MODULE    := libwhisper_vfpv4
+	include $(LOCAL_PATH)/Whisper.mk
+	# Allow building NEON FMA code.
+	# https://android.googlesource.com/platform/ndk/+/master/sources/android/cpufeatures/cpu-features.h
+	LOCAL_CFLAGS += -mfpu=neon-vfpv4
+	include $(BUILD_SHARED_LIBRARY)
 endif
 
-LOCAL_CFLAGS    += -DSTDC_HEADERS -std=c11 -I $(WHISPER_LIB_DIR)
-LOCAL_CPPFLAGS  += -std=c++11
-LOCAL_SRC_FILES := $(WHISPER_LIB_DIR)/ggml.c \
-                   $(WHISPER_LIB_DIR)/whisper.cpp \
-                   $(LOCAL_PATH)/jni.c
+ifeq ($(TARGET_ARCH_ABI),arm64-v8a)
+	include $(CLEAR_VARS)
+	LOCAL_MODULE    := libwhisper_v8fp16_va
+	include $(LOCAL_PATH)/Whisper.mk
+	# Allow building NEON FMA code.
+	# https://android.googlesource.com/platform/ndk/+/master/sources/android/cpufeatures/cpu-features.h
+	LOCAL_CFLAGS += -march=armv8.2-a+fp16
+	include $(BUILD_SHARED_LIBRARY)
+endif
 
-include $(BUILD_SHARED_LIBRARY)

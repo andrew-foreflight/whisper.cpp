@@ -9,8 +9,7 @@ import (
 // CGO
 
 /*
-#cgo CFLAGS: -I${SRCDIR}/../..
-#cgo LDFLAGS: -L${SRCDIR}/build -lwhisper -lm -lstdc++
+#cgo LDFLAGS: -lwhisper -lm -lstdc++
 #cgo darwin LDFLAGS: -framework Accelerate
 #include <whisper.h>
 #include <stdlib.h>
@@ -21,7 +20,7 @@ extern bool callEncoderBegin(void* user_data);
 // Text segment callback
 // Called on every newly generated text segment
 // Use the whisper_full_...() functions to obtain the text segments
-static void whisper_new_segment_cb(struct whisper_context* ctx, int n_new, void* user_data) {
+static void whisper_new_segment_cb(struct whisper_context* ctx, struct whisper_state* state, int n_new, void* user_data) {
     if(user_data != NULL && ctx != NULL) {
         callNewSegment(user_data, n_new);
     }
@@ -30,7 +29,7 @@ static void whisper_new_segment_cb(struct whisper_context* ctx, int n_new, void*
 // Encoder begin callback
 // If not NULL, called before the encoder starts
 // If it returns false, the computation is aborted
-static bool whisper_encoder_begin_cb(struct whisper_context* ctx, void* user_data) {
+static bool whisper_encoder_begin_cb(struct whisper_context* ctx, struct whisper_state* state, void* user_data) {
     if(user_data != NULL && ctx != NULL) {
         return callEncoderBegin(user_data);
     }
@@ -92,7 +91,7 @@ var (
 func Whisper_init(path string) *Context {
 	cPath := C.CString(path)
 	defer C.free(unsafe.Pointer(cPath))
-	if ctx := C.whisper_init(cPath); ctx != nil {
+	if ctx := C.whisper_init_from_file(cPath); ctx != nil {
 		return (*Context)(ctx)
 	} else {
 		return nil
@@ -148,16 +147,6 @@ func (ctx *Context) Whisper_decode(tokens []Token, past, threads int) error {
 	}
 }
 
-// whisper_sample_best() returns the token with the highest probability
-func (ctx *Context) Whisper_sample_best() TokenData {
-	return TokenData(C.whisper_sample_best((*C.struct_whisper_context)(ctx)))
-}
-
-// whisper_sample_timestamp() returns the most probable timestamp token
-func (ctx *Context) Whisper_sample_timestamp(is_initial bool) TokenData {
-	return TokenData(C.whisper_sample_timestamp((*C.struct_whisper_context)(ctx), C.bool(is_initial)))
-}
-
 // Convert the provided text into tokens. The tokens pointer must be large enough to hold the resulting tokens.
 // Returns the number of tokens on success
 func (ctx *Context) Whisper_tokenize(text string, tokens []Token) (int, error) {
@@ -171,6 +160,10 @@ func (ctx *Context) Whisper_tokenize(text string, tokens []Token) (int, error) {
 }
 
 // Return the id of the specified language, returns -1 if not found
+// Examples:
+//
+//	"de" -> 2
+//	"german" -> 2
 func (ctx *Context) Whisper_lang_id(lang string) int {
 	return int(C.whisper_lang_id(C.CString(lang)))
 }
@@ -209,6 +202,10 @@ func (ctx *Context) Whisper_n_vocab() int {
 
 func (ctx *Context) Whisper_n_text_ctx() int {
 	return int(C.whisper_n_text_ctx((*C.struct_whisper_context)(ctx)))
+}
+
+func (ctx *Context) Whisper_n_audio_ctx() int {
+	return int(C.whisper_n_audio_ctx((*C.struct_whisper_context)(ctx)))
 }
 
 func (ctx *Context) Whisper_is_multilingual() int {
@@ -359,7 +356,7 @@ func (ctx *Context) Whisper_full_get_token_id(segment int, token int) Token {
 
 // Get token data for the specified token in the specified segment.
 // This contains probabilities, timestamps, etc.
-func (ctx *Context) whisper_full_get_token_data(segment int, token int) TokenData {
+func (ctx *Context) Whisper_full_get_token_data(segment int, token int) TokenData {
 	return TokenData(C.whisper_full_get_token_data((*C.struct_whisper_context)(ctx), C.int(segment), C.int(token)))
 }
 
@@ -409,4 +406,12 @@ func callEncoderBegin(user_data unsafe.Pointer) C.bool {
 		}
 	}
 	return true
+}
+
+func (t TokenData) T0() int64 {
+	return int64(t.t0)
+}
+
+func (t TokenData) T1() int64 {
+	return int64(t.t1)
 }
